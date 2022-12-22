@@ -1,0 +1,40 @@
+#cloud-config
+
+# //////////////////////
+# // Stage | Init
+# //////////////////////
+
+users:
+- default
+- name: batman
+  gecos: batman
+  groups: users, admin
+  primary_group: batman
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
+  ssh_import_id:
+  - gh:kds-rune
+  lock_passwd: true
+
+# //////////////////////
+# // Stage | Config
+# //////////////////////
+
+keyboard:
+  layout: 'no'
+  model: pc105
+
+locale: nb_NO.UTF-8
+timezone: Europe/Oslo
+
+runcmd:
+- [ "printf","Hello, World\n", "|", "tee", "/run/hello.txt"  ]
+- [ "echo", "\"deb [signed-by=/etc/apt/keyrings/salt-archive-keyring.gpg arch=amd64] https://repo.saltproject.io/salt/py3/ubuntu/22.04/amd64/latest jammy main\"", "|", "sudo", "tee", "/etc/apt/sources.list.d/salt.list" ]
+
+# //////////////////////
+# // Stage | Final
+# //////////////////////
+
+package_update: false
+
+# scripts-user, ansible, salt-minion, etc.

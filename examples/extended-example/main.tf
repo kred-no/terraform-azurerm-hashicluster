@@ -62,7 +62,8 @@ output "example" {
 ////////////////////////
 
 module "example" {
-  source = "../../../terraform-azurerm-hashicluster"
+  #source = "../../../terraform-azurerm-vm-linux"
+  source = "github.com/kred-no/terraform-azurerm-vm-linux.git?ref=main"
 
   depends_on = [
     azurerm_virtual_network.MAIN,

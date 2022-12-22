@@ -13,5 +13,5 @@ git-check:
 # make git m="<commit-message>"
 git: git-check tf-fmt
 	@git add .
-	@git commit -m "[terraform-azurerm-hashicluster] by $${USER^}" -m "${m}"
+	@git commit -m "[terraform-azurerm-vm-linux] by $${USER^}" -m "${m}"
 	@git push -u origin main

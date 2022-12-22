@@ -20,7 +20,8 @@ locals {
 ////////////////////////
 
 module "example" {
-  source = "../../../terraform-azurerm-hashicluster"
+  #source = "../../../terraform-azurerm-vm-linux"
+  source = "github.com/kred-no/terraform-azurerm-vm-linux.git?ref=main"
 
   depends_on = [
     azurerm_virtual_network.MAIN,
@@ -29,6 +30,7 @@ module "example" {
 
   compute = {
     prefix          = local.vm_prefix
+    count           = 1
     priority        = "Spot"
     eviction_policy = "Delete"
     admin_username  = "superman"

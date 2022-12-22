@@ -1,0 +1,79 @@
+#cloud-config
+
+# //////////////////////
+# // Stage | Init
+# //////////////////////
+
+write_files:
+-
+  path: /run/provision/0-ansible-install.sh
+  content: |
+    #!/bin/env bash
+    set -x
+    
+    # Install Ansible (pip)
+    export PIP_ROOT_USER_ACTION=ignore # or use --root-user-action=ignore
+    
+    python3 -m pip install --upgrade pip --no-cache-dir
+    python3 -m pip install --upgrade wheel --no-cache-dir
+    python3 -m pip install --upgrade paramiko ansible-core --no-cache-dir
+    
+    # Add Ansible collections
+    echo "export ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections" | tee -a /etc/environment
+    
+    . /etc/environment
+    ansible-galaxy collection install community.general
+  owner: root:root
+  permissions: '0750'
+  defer: false
+-
+  path: /run/provision/1-provisioning.sh
+  content: |
+    #!/bin/env bash
+    set -x
+    ansible-pull \
+      --diff \
+      --inventory "$(uname -n)" \
+      --url https://github.com/kred-no/ansible-pull.git \
+      azure-nomad-server.yaml
+  owner: root:root
+  permissions: '0750'
+  defer: false
+
+users:
+- default
+- name: ansible
+  gecos: Ansible Provisioning User
+  groups: users,admin,wheel
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
+  ssh_import_id: 
+  - gh:kds-rune
+  lock_passwd: true
+
+# //////////////////////
+# // Stage | Config
+# //////////////////////
+
+keyboard:
+  layout: 'no'
+  model: pc105
+
+locale: nb_NO.UTF-8
+timezone: Europe/Oslo
+
+runcmd:
+- [ "chown", "ansible:ansible", "-R", "/run/provision" ]
+- [ "/run/provision/0-ansible-install.sh" ]
+- [ "sudo", "-u", "ansible", "/run/provision/1-provisioning.sh" ]
+
+# //////////////////////
+# // Stage | Final
+# //////////////////////
+
+packages:
+- python3-pip
+- git
+- curl
+- unzip
+- openssh-client

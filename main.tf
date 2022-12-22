@@ -1,9 +1,26 @@
 ////////////////////////
-// COMPUTE
+// COMPUTE | VM
 ////////////////////////
+
+resource "azurerm_virtual_machine_data_disk_attachment" "MAIN" {
+  count = length(var.compute.datadisk_gb) > 0 ? var.compute.count : 0
+
+  depends_on = [
+    azurerm_linux_virtual_machine.MAIN,
+  ]
+
+  managed_disk_id    = azurerm_managed_disk.MAIN[count.index].id
+  virtual_machine_id = azurerm_linux_virtual_machine.MAIN[count.index].id
+  lun                = "10"
+  caching            = "ReadWrite"
+}
 
 resource "azurerm_linux_virtual_machine" "MAIN" {
   count = var.compute.count
+
+  depends_on = [
+    azurerm_managed_disk.MAIN,
+  ]
 
   name = join("-", [var.compute.prefix, count.index])
   size = var.compute.size
@@ -15,7 +32,7 @@ resource "azurerm_linux_virtual_machine" "MAIN" {
   admin_username                  = var.compute.admin_username
   admin_password                  = var.compute.admin_password
 
-  custom_data = data.cloudinit_config.MAIN.rendered
+  availability_set_id = one(azurerm_availability_set.MAIN.*.id)
 
   network_interface_ids = [
     azurerm_network_interface.MAIN[count.index].id,
@@ -46,43 +63,73 @@ resource "azurerm_linux_virtual_machine" "MAIN" {
     }
   }
 
-  lifecycle {
-    ignore_changes = [
-      custom_data,
-    ]
-  }
-
+  custom_data         = data.cloudinit_config.MAIN.rendered
   location            = data.azurerm_resource_group.COMPUTE.location
   resource_group_name = data.azurerm_resource_group.COMPUTE.name
+  tags                = var.tags
+
+  lifecycle {
+    ignore_changes = [
+      custom_data, # taint the VMs you want to redeploy
+    ]
+  }
 }
 
 ////////////////////////
-// COMPUTE | Cloud-Init
+// COMPUTE | Data-Disk
 ////////////////////////
 
-data "cloudinit_config" "MAIN" {
-  gzip          = true
-  base64_encode = true
+resource "azurerm_managed_disk" "MAIN" {
+  count = length(var.compute.datadisk_gb) > 0 ? var.compute.count : 0
 
-  dynamic "part" {
-    for_each = [var.compute.userdata]
+  name                 = join("-", [var.compute.prefix, count.index, "DataDisk"])
+  disk_size_gb         = var.compute.datadisk_gb
+  storage_account_type = "Standard_LRS"
+  create_option        = "Empty"
 
-    content {
-      content_type = "text/cloud-config"
-      filename     = join(".", ["ci-userdata", part.key, "cfg"])
-      content      = part.value
-    }
+  location            = data.azurerm_resource_group.COMPUTE.location
+  resource_group_name = data.azurerm_resource_group.COMPUTE.name
+  tags                = var.tags
+}
+
+////////////////////////
+// COMPUTE | Availability Set
+////////////////////////
+
+resource "azurerm_availability_set" "MAIN" {
+  count = var.availability_set.enabled ? 1 : 0
+
+  name                         = join("", [var.compute.prefix, "availability-set"])
+  platform_fault_domain_count  = var.availability_set.fault_domain_count
+  platform_update_domain_count = var.availability_set.update_domain_count
+
+  resource_group_name = data.azurerm_resource_group.COMPUTE.name
+  location            = data.azurerm_resource_group.COMPUTE.location
+  tags                = var.tags
+
+}
+
+////////////////////////
+// NETWORK | Outbound-Rules
+////////////////////////
+
+resource "azurerm_lb_outbound_rule" "MAIN" {
+  count = alltrue([
+    var.loadbalancer.enabled,
+    var.loadbalancer.sku != "Basic",
+    var.loadbalancer.outbound_ports > 0,
+  ]) ? var.compute.count : 0
+
+  name                     = "lb-outbound-allow"
+  protocol                 = var.loadbalancer.outbound_protocols
+  allocated_outbound_ports = var.loadbalancer.outbound_ports
+
+  frontend_ip_configuration {
+    name = var.loadbalancer.frontend_name
   }
 
-  dynamic "part" {
-    for_each = var.compute.shellscripts
-
-    content {
-      content_type = "text/x-shellscript"
-      filename     = join(".", ["ci-userscript", part.key, "cfg"])
-      content      = part.value
-    }
-  }
+  backend_address_pool_id = one(azurerm_lb_backend_address_pool.MAIN.*.id)
+  loadbalancer_id         = one(azurerm_lb.MAIN.*.id)
 }
 
 ////////////////////////
@@ -183,6 +230,7 @@ resource "azurerm_lb" "MAIN" {
 
   location            = data.azurerm_resource_group.NETWORK.location
   resource_group_name = data.azurerm_resource_group.NETWORK.name
+  tags                = var.tags
 }
 
 ////////////////////////
@@ -199,6 +247,7 @@ resource "azurerm_public_ip" "MAIN" {
 
   location            = data.azurerm_resource_group.NETWORK.location
   resource_group_name = data.azurerm_resource_group.NETWORK.name
+  tags                = var.tags
 }
 
 ////////////////////////
@@ -217,6 +266,7 @@ resource "azurerm_application_security_group" "MAIN" {
 
   location            = data.azurerm_resource_group.NETWORK.location
   resource_group_name = data.azurerm_resource_group.NETWORK.name
+  tags                = var.tags
 }
 
 ////////////////////////
@@ -243,6 +293,7 @@ resource "azurerm_network_interface" "MAIN" {
 
   location            = data.azurerm_resource_group.NETWORK.location
   resource_group_name = data.azurerm_resource_group.NETWORK.name
+  tags                = var.tags
 }
 
 ////////////////////////
@@ -250,7 +301,7 @@ resource "azurerm_network_interface" "MAIN" {
 ////////////////////////
 
 resource "azurerm_network_security_group" "MAIN" {
-  name = format("%s-nsg", azurerm_subnet.MAIN.name)
+  name = join("-", [azurerm_subnet.MAIN.name, "nsg"])
 
   dynamic "security_rule" {
     for_each = var.nsg_rules
@@ -282,6 +333,7 @@ resource "azurerm_network_security_group" "MAIN" {
 
   resource_group_name = data.azurerm_resource_group.NETWORK.name
   location            = data.azurerm_resource_group.NETWORK.location
+  tags                = var.tags
 }
 
 ////////////////////////
@@ -294,6 +346,35 @@ resource "azurerm_subnet" "MAIN" {
 
   virtual_network_name = data.azurerm_virtual_network.MAIN.name
   resource_group_name  = data.azurerm_resource_group.NETWORK.name
+}
+
+////////////////////////
+// CONFIG | Cloud-Init
+////////////////////////
+
+data "cloudinit_config" "MAIN" {
+  gzip          = true
+  base64_encode = true
+
+  dynamic "part" {
+    for_each = [var.compute.userdata]
+
+    content {
+      content_type = "text/cloud-config"
+      filename     = join(".", ["ci-userdata", part.key, "cfg"])
+      content      = part.value
+    }
+  }
+
+  dynamic "part" {
+    for_each = var.compute.shellscripts
+
+    content {
+      content_type = "text/x-shellscript"
+      filename     = join(".", ["ci-userscript", part.key, "cfg"])
+      content      = part.value
+    }
+  }
 }
 
 ////////////////////////

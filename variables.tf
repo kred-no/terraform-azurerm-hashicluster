@@ -1,4 +1,13 @@
 ////////////////////////
+// Common Resources
+////////////////////////
+
+variable "tags" {
+  type    = map(string)
+  default = {}
+}
+
+////////////////////////
 // Parent Resources
 ////////////////////////
 
@@ -73,6 +82,10 @@ variable "loadbalancer" {
     public_ip_name       = optional(string, "LoadBalancer")
     public_ip_allocation = optional(string, "Static")
     public_ip_label      = optional(string)
+
+    // Req. w/ "Standard" sku for external connectivity
+    outbound_ports     = optional(number, 1024)
+    outbound_protocols = optional(string, "All")
   })
 
   default = {}
@@ -97,11 +110,7 @@ variable "lb_rules" {
     probe_interval = optional(number, 20)
   }))
 
-  default = [{
-    name          = "lb-rule-8080"
-    backend_port  = 8080
-    frontend_port = 80
-  }]
+  default = []
 }
 
 variable "nat_rules" {
@@ -140,6 +149,21 @@ variable "compute" {
     image_version   = optional(string, "latest")
     userdata        = optional(string, "")
     shellscripts    = optional(list(string), [])
+    datadisk_gb     = optional(string, "")
+  })
+
+  default = {}
+}
+
+////////////////////////
+// Compute | Availability-Set
+////////////////////////
+
+variable "availability_set" {
+  type = object({
+    enabled             = optional(bool, false)
+    fault_domain_count  = optional(number, 1)
+    update_domain_count = optional(number, 1)
   })
 
   default = {}

@@ -1,0 +1,110 @@
+#cloud-config
+
+# //////////////////////
+# // Stage > Init
+# //////////////////////
+
+write_files:
+-
+  path: /run/provision/ci-info.md
+  content: |
+    Connect via SSH & tunnel ports back
+    ------------------------------------
+    ssh -i ~/.ssh/id_rsa <USERNAME>@<IP-ADDRESS> -p 5500 -L <LOCAL_ADDR:PORT>:<REMOTE_ADDR:PORT> -L 127.0.0.1:8500:localhost:8500
+    
+    
+    Get public gpg-key & check if present on keyserver
+    ---------------------------------------------------
+    wget -qO- https://<public-gpg-url> | gpg --with-fingerprint --with-colons | awk -F: '/^fpr/ {print $10}'
+    gpg --keyserver=server.ubuntu.com --recv-keys=<public-gpg-key-id>
+    
+
+    Download gpg-key, if not present
+    ---------------------------------
+    runcmd:
+    - [ "sudo", "wget", "-qO", "/etc/apt/keyrings/saltstack-archive-keyring.gpg", "https://repo.saltproject.io/salt/py3/ubuntu/22.04/amd64/latest/salt-archive-keyring.gpg" ]
+  owner: root:root
+  permissions: '0644'
+  defer: false
+
+groups:
+- docker
+- hashicorp
+
+users:
+- default
+- name: salt
+  gecos: Salt User
+  groups: users,admin,wheel
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
+  lock_passwd: true
+- name: nomad
+  gecos: Nomad User
+  groups: users,admin,wheel,hashicorp,docker
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
+  lock_passwd: true
+- name: consul
+  gecos: Consul User
+  groups: users,admin,wheel,hashicorp
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
+  lock_passwd: true
+- name: vault
+  gecos: Vault User
+  groups: users,admin,wheel
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
+  lock_passwd: true
+
+# //////////////////////
+# // Stage > Config
+# //////////////////////
+
+ssh_import_id:
+- gh:kds-rune
+
+keyboard:
+  layout: 'no'
+  model: pc105
+
+locale: nb_NO.UTF-8
+
+apt:
+  sources:
+    saltstack:
+      source: "deb [arch=amd64] https://repo.saltproject.io/salt/py3/ubuntu/22.04/amd64/latest $RELEASE main"
+      keyid: 754A1A7AE731F165D5E6D4BD0E08A149DE57BFBE
+    hashicorp:
+      source: "deb [arch=amd64] https://apt.releases.hashicorp.com $RELEASE main"
+      keyid: E8A032E094D8EB4EA189D270DA418C88A3219F7B
+    docker:
+      source: "deb [arch=amd64] https://download.docker.com/linux/ubuntu $RELEASE stable"
+      keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+
+timezone: Europe/Oslo
+
+runcmd:
+- [ "printf", "\"ssh -i ~/.ssh/id_rsa <user>@<addres> -p 5500 -L 127.0.0.1:4646:localhost:4646 -L 127.0.0.1:8500:localhost:8500 -L 127.0.0.1:8200:localhost:8200\"", "|", "tee", "/opt/ssh-tunnel-info.txt" ]
+
+# //////////////////////
+# // Stage > Final
+# //////////////////////
+
+package_update: true
+
+packages: # sudo apt-cache policy <application>
+- software-properties-common
+- apt-transport-https
+- ca-certificates
+- gnupg-agent
+- curl
+- unzip
+- salt-minion
+- docker-ce
+- docker-ce-cli
+- containerd.io
+- [nomad, 1.4.3-1]
+- [consul, 1.14.3-1]
+- [vault, 1.12.2-1]

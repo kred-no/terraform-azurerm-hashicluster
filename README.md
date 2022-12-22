@@ -6,8 +6,10 @@ Deploy one or more Linux virtual machines
 
   * Assigns ASG & NSG (on NIC-level)
   * Create one or more identical VMs
-  * Provision using cloud-init userdata and/or shell-scripts.
-  * (Optional) Add NSG rules
-  * (Optional) Add NAT rules (req. "Standard" sku for pip & lb)
-  * (Optional) Configure Load Balancer w/public IP
-  * (Optional) Configure Load Balancing rules (probes, nat, lb)
+  * Provision using cloud-init userdata & user-scripts.
+  * Extra managed disk
+  * NSG rules
+  * NAT rules (req. "Standard" sku for pip & lb)
+  * Load Balancer w/public IP supported
+  * Load Balancing rules (probes, nat, lb, outbound)
+  

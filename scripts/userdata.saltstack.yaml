@@ -1,0 +1,57 @@
+#cloud-config
+
+# //////////////////////
+# // Stage | Init
+# //////////////////////
+
+write_files:
+- path: /run/provision/0-ansible-install.sh
+  content: |
+    #!/bin/env bash
+    set -x
+    
+    # Install SaltStack
+    curl -fsSL -o /etc/apt/keyrings/salt-archive-keyring.gpg https://repo.saltproject.io/salt/py3/ubuntu/22.04/amd64/latest/salt-archive-keyring.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/salt-archive-keyring.gpg arch=amd64] https://repo.saltproject.io/salt/py3/ubuntu/22.04/amd64/latest jammy main" | tee /etc/apt/sources.list.d/salt.list
+  owner: root:root
+  permissions: '0750'
+  defer: false
+
+users:
+- default
+- name: salt
+  gecos: SaltStack Provisioning User
+  groups: users,admin,wheel
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
+  ssh_import_id:
+  - gh:kds-rune
+  lock_passwd: true
+
+# //////////////////////
+# // Stage | Config
+# //////////////////////
+
+keyboard:
+  layout: 'no'
+  model: pc105
+
+locale: nb_NO.UTF-8
+timezone: Europe/Oslo
+
+runcmd:
+- [ "chown", "salt:salt", "-R", "/run/provision" ]
+- [ "/run/provision/0-saltstack-install.sh" ]
+
+# //////////////////////
+# // Stage | Final
+# //////////////////////
+
+package_update: true
+
+packages:
+- git
+- curl
+- unzip
+- openssh-client
+- salt-minion

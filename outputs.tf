@@ -1,4 +1,6 @@
 output "out" {
+  description = "Work in Progres"
+
   value = {
     pip    = one(azurerm_public_ip.MAIN[*])
     subnet = azurerm_subnet.MAIN
@@ -7,7 +9,8 @@ output "out" {
 }
 
 output "sensitive" {
-  sensitive = true
+  description = "Work in Progres"
+  sensitive   = true
 
   value = {
     password = "SecretPassword"
