@@ -3,15 +3,19 @@
 ////////////////////////
 
 locals {
-  resource_group_prefix   = "ExampleRG"
+  resource_group_prefix   = "TF-Example"
   resource_group_location = "West Europe"
-  network_name            = "ExampleVNet"
-  network_address_space   = ["192.168.0.0/16"]
-  subnet_name             = "ExampleSubnet"
-  subnet_prefixes         = ["192.168.0.0/24"]
-  vm_prefix               = "Node"
-  vm_count                = 1
-  userdata_filename       = "userdata.hashicorp.yaml"
+
+  network_name          = "Partitioning"
+  network_address_space = ["192.168.0.0/24"]
+
+  subnet_name     = "VMs"
+  subnet_prefixes = ["192.168.0.0/27"]
+
+  vm_prefix      = "VM"
+  vm_count       = 1
+  vm_datadisk_gb = "20" // Minimum disk is 32 GiB
+  vm_userdata    = "userdata.partitioning.2.yaml"
 
   ssh_keys = [
     file("~/.ssh/id_rsa.pub"),
@@ -20,7 +24,7 @@ locals {
   tags = {
     Environment = "Development"
     Provisioner = "Terraform"
-    Billing     = "BG-001"
+    Example     = "Partitioning"
   }
 }
 
@@ -30,7 +34,7 @@ locals {
 
 output "info" {
   value = {
-    ssh = format("ssh -i ~/.ssh/id_rsa %s@%s -p %s", "superman", module.example.out.pip.ip_address, "5500")
+    info = format("ssh -i ~/.ssh/id_rsa %s@%s -p %s", "superman", module.example.out.pip.ip_address, "5500")
   }
 }
 
@@ -39,8 +43,8 @@ output "info" {
 ////////////////////////
 
 module "example" {
-  #source = "../../../terraform-azurerm-vm-linux"
-  source = "github.com/kred-no/terraform-azurerm-vm-linux.git?ref=main"
+  source = "../../../terraform-azurerm-vm-linux"
+  #source = "github.com/kred-no/terraform-azurerm-vm-linux.git?ref=main"
 
   depends_on = [
     azurerm_virtual_network.MAIN,
@@ -74,11 +78,12 @@ module "example" {
   compute = {
     prefix          = local.vm_prefix
     count           = local.vm_count
+    admin_ssh_keys  = local.ssh_keys
     priority        = "Spot"
     eviction_policy = "Delete"
     admin_username  = "superman"
     admin_password  = "Cl@rkK3nt"
-    admin_ssh_keys  = local.ssh_keys
+    datadisk_gb     = local.vm_datadisk_gb
     userdata        = data.local_file.CI.content
   }
 
@@ -118,7 +123,7 @@ resource "azurerm_resource_group" "MAIN" {
 ////////////////////////
 
 data "local_file" "CI" {
-  filename = join("/", ["../../scripts", local.userdata_filename])
+  filename = join("/", ["../x-scripts", local.vm_userdata])
 }
 
 resource "random_id" "UID" {

@@ -11,7 +11,7 @@ resource "azurerm_virtual_machine_data_disk_attachment" "MAIN" {
 
   managed_disk_id    = azurerm_managed_disk.MAIN[count.index].id
   virtual_machine_id = azurerm_linux_virtual_machine.MAIN[count.index].id
-  lun                = "10"
+  lun                = "0"
   caching            = "ReadWrite"
 }
 
@@ -106,7 +106,6 @@ resource "azurerm_availability_set" "MAIN" {
   resource_group_name = data.azurerm_resource_group.COMPUTE.name
   location            = data.azurerm_resource_group.COMPUTE.location
   tags                = var.tags
-
 }
 
 ////////////////////////

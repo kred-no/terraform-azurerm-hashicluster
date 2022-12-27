@@ -1,0 +1,62 @@
+#cloud-config
+
+# //////////////////////
+# // Stage > Init
+# //////////////////////
+
+disk_aliases:
+  ephemeral0: /dev/disk/cloud/azure_resource
+
+disk_setup:
+  ephemeral0:
+    table_type: mbr
+    layout:
+    - 65
+    - [35,82] # '82' => 'Linux Swap'
+    overwrite: true
+
+fs_setup:
+- label: cache
+  filesystem: ext4
+  device: ephemeral0
+  partition: 1
+- label: swap
+  filesystem: swap
+  device: ephemeral0
+  partition: 2
+
+mounts:
+- [ "ephemeral0.1", "/mnt" ]
+- [ "ephemeral0.2", "none", "swap", "sw,nofail,x-systemd.requires=cloud-init.service", "0", "0" ]
+
+users:
+- default
+- name: terraform
+  gecos: Terraform User
+  groups: users,admin,wheel
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
+  ssh_import_id:
+  - gh:kds-rune
+  lock_passwd: true
+
+# //////////////////////
+# // Stage > Config
+# //////////////////////
+
+# Default User
+ssh_import_id:
+- gh:kds-rune
+
+keyboard:
+  layout: 'no'
+  model: pc105
+
+locale: nb_NO.UTF-8
+timezone: Europe/Oslo
+
+# //////////////////////
+# // Stage > Final
+# //////////////////////
+
+package_update: false

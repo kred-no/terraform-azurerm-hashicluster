@@ -25,7 +25,7 @@ write_files:
     - [ "sudo", "wget", "-qO", "/etc/apt/keyrings/saltstack-archive-keyring.gpg", "https://repo.saltproject.io/salt/py3/ubuntu/22.04/amd64/latest/salt-archive-keyring.gpg" ]
   owner: root:root
   permissions: '0644'
-  defer: false
+  defer: false # Created in "final" stage, if true.
 
 groups:
 - docker
@@ -43,19 +43,22 @@ users:
   gecos: Nomad User
   groups: users,admin,wheel,hashicorp,docker
   sudo: ALL=(ALL) NOPASSWD:ALL
-  shell: /bin/bash
+  shell: /sbin/nologin
+  system: true
   lock_passwd: true
 - name: consul
   gecos: Consul User
   groups: users,admin,wheel,hashicorp
   sudo: ALL=(ALL) NOPASSWD:ALL
-  shell: /bin/bash
+  shell: /sbin/nologin
+  system: true
   lock_passwd: true
 - name: vault
   gecos: Vault User
   groups: users,admin,wheel
   sudo: ALL=(ALL) NOPASSWD:ALL
-  shell: /bin/bash
+  shell: /sbin/nologin
+  system: true
   lock_passwd: true
 
 # //////////////////////
@@ -87,6 +90,8 @@ timezone: Europe/Oslo
 
 runcmd:
 - [ "printf", "\"ssh -i ~/.ssh/id_rsa <user>@<addres> -p 5500 -L 127.0.0.1:4646:localhost:4646 -L 127.0.0.1:8500:localhost:8500 -L 127.0.0.1:8200:localhost:8200\"", "|", "tee", "/opt/ssh-tunnel-info.txt" ]
+- [ "systemctl", "start", "--no-block", "docker.service" ]
+
 
 # //////////////////////
 # // Stage > Final

@@ -1,0 +1,129 @@
+#cloud-config
+
+# Stage > Init
+
+bootcmd:
+- date | sudo tee -a /opt/ci.log
+
+write_files:
+- path: /run/ci/1.datadisk.sh
+  content: |
+    #!/bin/env bash
+    set -x
+
+    DEVICE_AZURE="/dev/disk/azure/scsi1/lun0"
+    PARTITION_AZURE="$DEVICE_AZURE-part1"
+    MOUNT_POINT=/data
+
+    printf "Validating mount\n"
+    mkdir -p $MOUNT_POINT
+
+    printf "Waiting for device\n"
+    DELAY=5 RETRIES=10
+    for cnt in $(seq 0 $RETRIES); do
+      if [ -b "$DEVICE_AZURE" ]; then
+        printf "Device %s found\n" "$DEVICE_AZURE"
+        DEVICE=$(readlink -f $DEVICE_AZURE)
+        break
+      fi
+
+      printf "Device %s not found; $cnt\n" "$DEVICE_AZURE"
+      sleep $DELAY
+    done
+
+    printf "Checking device status\n"
+    if [ -z "$DEVICE" ]; then
+      printf "Device %s not found, and timed out\n" "$DEVICE_AZURE"
+      exit 1
+    fi
+
+    printf "Checking /etc/fstab\n"
+    grep -q "$PARTITION_AZURE" /etc/fstab
+    if [ $? -eq 0 ]; then
+      printf "Partition %s exists in fstab\n" "$PARTITION_AZURE"
+      mount $PARTITION_AZURE
+      exit 0
+    fi
+
+    printf "Updating /etc/fstab\n"
+    printf "%s %s auto defaults,nofail 0 2\n" "$PARTITION_AZURE" "$MOUNT_POINT" | tee -a /etc/fstab
+
+    printf "Checking for existing partition\n"
+    parted -ms $DEVICE print | grep -q "^1:"
+    if [ $? -eq 0 ]; then
+      printf "Partition 1 found on %s\n" "$DEVICE"
+      mount $PARTITION_AZURE
+      exit 0
+    fi
+
+    printf "Creating partitionin\n"
+    parted -ms $DEVICE mklabel gpt
+    parted -ms $DEVICE mkpart primary xfs 0% 100%
+    parted -ms $DEVICE name 1 data0
+    
+    printf "Creating filesystem\n"
+    mkfs.xfs -q "${DEVICE}1"
+
+    printf "Mounting partition\n"
+    mount $PARTITION_AZURE
+  owner: root:root
+  permissions: '0750'
+
+disk_aliases:
+  ephemeral0: /dev/disk/cloud/azure_resource
+
+disk_setup:
+  ephemeral0:
+    table_type: mbr
+    layout:
+    - 65 # '83' => 'Linux' (default)
+    - [35,82] # '82' => 'Linux Swap'
+    overwrite: true
+
+fs_setup:
+- label: cache
+  filesystem: ext4
+  device: ephemeral0.1
+- label: swap
+  filesystem: swap
+  device: ephemeral0.2
+
+mounts:
+- [ "ephemeral0.1", "/mnt" ]
+- [ "ephemeral0.2", "none", "swap", "sw,nofail,x-systemd.requires=cloud-init.service", "0", "0" ]
+
+users:
+- default
+- name: terraform
+  gecos: Terraform User
+  groups: users,admin,wheel
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
+  ssh_import_id:
+  - gh:kds-rune
+  lock_passwd: true
+
+# Stage > Config
+
+ssh_import_id:
+- gh:kds-rune
+
+keyboard:
+  layout: 'no'
+  model: pc105
+
+locale: nb_NO.UTF-8
+
+timezone: Europe/Oslo
+
+runcmd:
+- /run/ci/1.datadisk.sh | tee -a /opt/ci.log
+- date | tee -a /opt/ci.log
+
+# Stage > Final
+
+package_update: false
+
+#power_state:
+#  delay: now
+#  mode: reboot

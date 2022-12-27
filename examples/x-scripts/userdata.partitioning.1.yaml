@@ -1,0 +1,82 @@
+#cloud-config
+
+#
+# Stage > Init
+#
+
+bootcmd:
+- date | sudo tee -a /opt/bootcmd.log
+
+disk_aliases:
+  ephemeral0: /dev/disk/cloud/azure_resource
+  data0: /dev/disk/azure/scsi1/lun0 # Will PROBABLY not be detected on first boot (not attached)
+
+disk_setup:
+  ephemeral0:
+    table_type: mbr
+    layout:
+    - 65 # '83' => 'Linux' (default)
+    - [35,82] # '82' => 'Linux Swap'
+    overwrite: true
+  data0: # Will not be found on first boot
+    table_type: gpt
+    layout: true
+    overwrite: false # Keep data, if already partitioned
+
+fs_setup:
+- label: cache
+  filesystem: ext4
+  device: ephemeral0.1
+- label: swap
+  filesystem: swap
+  device: ephemeral0.2
+- label: data
+  filesystem: ext4
+  device: data0
+  partition: auto
+
+mounts:
+- [ "ephemeral0.1", "/mnt" ]
+- [ "ephemeral0.2", "none", "swap", "sw,nofail,x-systemd.requires=cloud-init.service", "0", "0" ]
+- [ "data0.1", "/data", auto, "defaults,noexec,nofail" ]
+
+users:
+- default
+- name: terraform
+  gecos: Terraform User
+  groups: users,admin,wheel
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
+  ssh_import_id:
+  - gh:kds-rune
+  lock_passwd: true
+
+#
+# Stage > Config
+#
+
+ssh_import_id:
+- gh:kds-rune
+
+keyboard:
+  layout: 'no'
+  model: pc105
+
+locale: nb_NO.UTF-8
+
+timezone: Europe/Oslo
+
+runcmd:
+- [ "date", "|", "sudo", "tee", "-a", "/opt/bootcmd.log" ]
+
+#
+# Stage > Final
+#
+
+package_update: false
+
+power_state:
+  delay: now
+  mode: reboot
+  #condition: cloud-init-per once lun0-id test -e /dev/disk/azure/scsi1/lun0
+  #- [ "/bin/bash", "-c", "until [ -e /dev/disk/azure/scsi1/lun0 ]; do sleep 3; done" ]

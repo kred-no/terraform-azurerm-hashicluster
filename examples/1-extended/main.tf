@@ -75,9 +75,9 @@ module "example" {
     count           = local.number_of_vms
     priority        = "Spot"
     eviction_policy = "Delete"
-    userdata        = local.userdata
     admin_username  = "superman"
     admin_ssh_keys  = [file("~/.ssh/id_rsa.pub")]
+    userdata        = local.userdata
   }
 
   loadbalancer = {

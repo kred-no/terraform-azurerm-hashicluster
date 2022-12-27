@@ -6,7 +6,7 @@ Deploy one or more Linux virtual machines
 
   * Assigns ASG & NSG (on NIC-level)
   * Create one or more identical VMs
-  * Provision using cloud-init userdata & user-scripts.
+  * Provision using cloud-init userdata & user-scripts (max 64kb).
   * Extra managed disk
   * NSG rules
   * NAT rules (req. "Standard" sku for pip & lb)
